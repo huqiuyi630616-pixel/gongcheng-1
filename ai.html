@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匠心装维管家 - 墙面维修与工程成本AI助手</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts: Inter & Noto Sans SC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 引入 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        /* 麦克风波纹动画 */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.85); opacity: 0.8; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .recording-ring {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- 品牌标识 -->
+            <div class="flex items-center gap-2.5">
+                <div class="bg-amber-500 p-2 rounded-xl text-slate-900 shadow-sm">
+                    <i data-lucide="paint-roller" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight leading-tight">匠心装维管家</h1>
+                    <p class="text-xs text-slate-400">墙面维修 · 成本核算 · AI语音助手</p>
+                </div>
+            </div>
+
+            <!-- 工地项目切换器 -->
+            <div class="flex items-center gap-2 bg-slate-800 p-1.5 rounded-xl border border-slate-700 w-full sm:w-auto justify-between sm:justify-start">
+                <div class="flex items-center gap-2 pl-2">
+                    <i data-lucide="building-2" class="w-4 h-4 text-amber-400 shrink-0"></i>
+                    <select id="projectSelect" onchange="switchProject(this.value)" class="bg-transparent text-sm font-medium text-white focus:outline-none cursor-pointer pr-2 max-w-[160px] sm:max-w-[220px] truncate">
+                        <!-- 动态填充项目 -->
+                    </select>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button onclick="exportMonthlyCSV()" class="bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition" title="导出本月所有工地成本Excel表格">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> 导出本月表格
+                    </button>
+                    <button onclick="openNewProjectModal()" class="bg-slate-700 hover:bg-slate-600 text-amber-400 text-xs font-medium px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition" title="新建工地项目">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> 新工地
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主工作区 -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6 space-y-6">
+
+        <!-- 顶部数据概览卡片 -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500 text-xs sm:text-sm mb-1">
+                    <span>当前工地总成本</span>
+                    <span class="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><i data-lucide="wallet" class="w-4 h-4"></i></span>
+                </div>
+                <div class="text-xl sm:text-2xl font-bold text-slate-900" id="statTotalCost">¥0.00</div>
+                <div class="text-xs text-slate-400 mt-1" id="statCostCount">共 0 笔明细</div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500 text-xs sm:text-sm mb-1">
+                    <span>人工/施工费</span>
+                    <span class="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="hard-hat" class="w-4 h-4"></i></span>
+                </div>
+                <div class="text-xl sm:text-2xl font-bold text-blue-600" id="statLaborCost">¥0.00</div>
+                <div class="text-xs text-slate-400 mt-1">含包辅料施工项</div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500 text-xs sm:text-sm mb-1">
+                    <span>主材/辅料采购</span>
+                    <span class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="package" class="w-4 h-4"></i></span>
+                </div>
+                <div class="text-xl sm:text-2xl font-bold text-emerald-600" id="statMaterialCost">¥0.00</div>
+                <div class="text-xs text-slate-400 mt-1">腻子/乳胶漆/瓷砖等</div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-500 text-xs sm:text-sm mb-1">
+                    <span>待办施工进度</span>
+                    <span class="p-1.5 bg-purple-50 text-purple-600 rounded-lg"><i data-lucide="check-square" class="w-4 h-4"></i></span>
+                </div>
+                <div class="text-xl sm:text-2xl font-bold text-slate-900" id="statTodoProgress">0 / 0</div>
+                <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div id="statTodoBar" class="bg-purple-500 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI 语音/自然语言智能助手区域 -->
+        <section class="bg-gradient-to-br from-slate-800 via-slate-800 to-slate-900 rounded-2xl p-5 text-white shadow-lg border border-slate-700/80">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <div class="flex items-center gap-2">
+                    <span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> AI 智能助手
+                    </span>
+                    <h2 class="font-semibold text-base sm:text-lg">说句话，自动记账 & 列待办</h2>
+                </div>
+                <span class="text-xs text-slate-400">支持连续说多件事，AI自动拆解分类</span>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3">
+                <!-- 语音按钮 -->
+                <button id="voiceBtn" onclick="toggleVoiceRecognition()" class="relative bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold px-5 py-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-md shrink-0">
+                    <span id="voiceRing" class="hidden absolute inset-0 rounded-xl bg-amber-400 recording-ring"></span>
+                    <i data-lucide="mic" id="voiceIcon" class="w-5 h-5 relative z-10"></i>
+                    <span id="voiceBtnText" class="relative z-10">点击语音输入</span>
+                </button>
+
+                <!-- 文本输入框与解析按钮 -->
+                <div class="flex-1 flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="aiInputText" placeholder="试试说：贴地面瓷砖25平方，200一平含水泥不含砖；另外明天去买两桶抗碱底漆..." 
+                        class="flex-1 bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 transition"
+                        onkeydown="if(event.key==='Enter') analyzeWithAI()">
+                    <button id="aiAnalyzeBtn" onclick="analyzeWithAI()" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-medium px-5 py-3 rounded-xl flex items-center justify-center gap-2 transition shrink-0 shadow-sm">
+                        <i data-lucide="wand-2" class="w-4 h-4"></i>
+                        <span>AI 智能整理</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 快捷示例标签 -->
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <span class="text-slate-400">快捷测试语句：</span>
+                <button onclick="fillExample('客厅墙面铲除加刮两遍腻子，45平方，35元一平含腻子粉')" class="bg-slate-700/70 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded-lg transition text-left">
+                    “墙面刮腻子45平，35元/平含料”
+                </button>
+                <button onclick="fillExample('今天买了立邦五合一乳胶漆3桶，每桶480元；提醒我后天下午去现场验收打磨平整度')" class="bg-slate-700/70 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded-lg transition text-left">
+                    “买漆3桶每桶480 + 后天验收打磨”
+                </button>
+            </div>
+
+            <!-- AI 解析结果预览确认区 (默认隐藏) -->
+            <div id="aiPreviewBox" class="hidden mt-4 bg-slate-900/95 border border-amber-500/40 rounded-xl p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span class="text-sm font-semibold text-amber-400 flex items-center gap-1.5">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i> AI 已为您整理出以下条目，请核对：
+                    </span>
+                    <button onclick="closeAiPreview()" class="text-slate-400 hover:text-white text-xs">取消</button>
+                </div>
+                <div id="aiPreviewList" class="space-y-2 text-sm">
+                    <!-- 动态生成预览卡片 -->
+                </div>
+                <div id="aiSummaryNote" class="text-xs text-slate-300 bg-slate-800/80 p-2.5 rounded-lg border-l-2 border-blue-400"></div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button onclick="closeAiPreview()" class="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 transition">放弃</button>
+                    <button onclick="confirmAiItems()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> 全部确认入账/加入待办
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 核心业务双栏布局：左侧项目成本记账，右侧施工待办清单 -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- 左侧：项目成本明细 (占 7 列) -->
+            <section class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
+                    <div class="flex items-center gap-2">
+                        <div class="p-2 bg-amber-100 text-amber-700 rounded-xl">
+                            <i data-lucide="calculator" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-slate-900 text-base sm:text-lg">项目成本明细</h2>
+                            <p class="text-xs text-slate-500">支持按平方/数量计价，清晰记录含料情况</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openQuoteModal()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs sm:text-sm font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm">
+                            <i data-lucide="file-text" class="w-4 h-4"></i> 生成业主报价单
+                        </button>
+                        <button onclick="openCostModal()" class="bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm">
+                            <i data-lucide="plus" class="w-4 h-4"></i> 记一笔
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 费用分类快捷筛选条 -->
+                <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2 overflow-x-auto text-xs">
+                    <button onclick="filterCosts('all')" data-filter="all" class="cost-filter-btn bg-slate-900 text-white px-3 py-1.5 rounded-lg font-medium transition shrink-0">全部明细</button>
+                    <button onclick="filterCosts('人工+辅料')" data-filter="人工+辅料" class="cost-filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition shrink-0">人工+辅料</button>
+                    <button onclick="filterCosts('纯人工费')" data-filter="纯人工费" class="cost-filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition shrink-0">纯人工费</button>
+                    <button onclick="filterCosts('材料采购')" data-filter="材料采购" class="cost-filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition shrink-0">材料采购</button>
+                    <button onclick="filterCosts('其他杂费')" data-filter="其他杂费" class="cost-filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition shrink-0">其他杂费</button>
+                </div>
+
+                <!-- 成本明细列表容器 -->
+                <div id="costListContainer" class="divide-y divide-slate-100 max-h-[540px] overflow-y-auto">
+                    <!-- 动态渲染项目成本 -->
+                </div>
+            </section>
+
+            <!-- 右侧：施工待办清单 (占 5 列) -->
+            <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/50">
+                    <div class="flex items-center gap-2">
+                        <div class="p-2 bg-purple-100 text-purple-700 rounded-xl">
+                            <i data-lucide="list-checks" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-slate-900 text-base sm:text-lg">施工待办清单</h2>
+                            <p class="text-xs text-slate-500">工序排期、补货提醒与验收要点</p>
+                        </div>
+                    </div>
+                    <button onclick="clearCompletedTodos()" class="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition">
+                        清理已完成
+                    </button>
+                </div>
+
+                <!-- 快速添加待办输入框 -->
+                <div class="p-3.5 bg-slate-50/80 border-b border-slate-100 flex flex-col sm:flex-row gap-2">
+                    <select id="quickTodoTag" class="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-purple-500 shrink-0">
+                        <option value="施工工序">施工工序</option>
+                        <option value="材料采购">材料采购</option>
+                        <option value="现场验收">现场验收</option>
+                    </select>
+                    <div class="flex-1 flex gap-2">
+                        <input type="text" id="quickTodoInput" placeholder="输入待办事项，按回车添加..." 
+                            class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                            onkeydown="if(event.key==='Enter') addQuickTodo()">
+                        <button onclick="addQuickTodo()" class="bg-purple-600 hover:bg-purple-500 text-white px-3.5 py-2 rounded-xl text-sm font-medium transition shrink-0">
+                            添加
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 待办事项列表容器 -->
+                <div id="todoListContainer" class="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                    <!-- 动态渲染待办清单 -->
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- 弹窗 1：手动记一笔成本弹窗 -->
+    <div id="costModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-lg text-slate-900">记一笔项目成本</h3>
+                <button onclick="closeCostModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="costForm" onsubmit="saveCostItem(event)" class="space-y-3.5 text-sm">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">施工 / 材料项目名称 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="costName" required placeholder="例如：贴地面瓷砖 / 墙面刮两遍腻子" 
+                        class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">费用类型</label>
+                        <select id="costCategory" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-amber-500">
+                            <option value="人工+辅料">人工+辅料</option>
+                            <option value="纯人工费">纯人工费</option>
+                            <option value="材料采购">材料采购</option>
+                            <option value="其他杂费">其他杂费</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">计价单位</label>
+                        <select id="costUnit" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:border-amber-500">
+                            <option value="平方">平方 (㎡)</option>
+                            <option value="米">米 (m)</option>
+                            <option value="桶">桶</option>
+                            <option value="袋">袋</option>
+                            <option value="项">项 / 套</option>
+                            <option value="天">天 / 工日</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">单价 (元) <span class="text-rose-500">*</span></label>
+                        <input type="number" id="costUnitPrice" step="0.01" min="0" required placeholder="200" oninput="calculateModalTotal()"
+                            class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-700 mb-1">面积 / 数量 <span class="text-rose-500">*</span></label>
+                        <input type="number" id="costQuantity" step="0.01" min="0.01" value="1" required placeholder="30" oninput="calculateModalTotal()"
+                            class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <div class="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between">
+                    <span class="text-slate-600 font-medium">自动核算小计：</span>
+                    <span id="modalTotalPreview" class="text-xl font-bold text-amber-700">¥0.00</span>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">材料包含说明 / 备注</label>
+                    <input type="text" id="costNote" placeholder="例如：人工成本+水泥沙子，不含主材瓷砖" 
+                        class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeCostModal()" class="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition">取消</button>
+                    <button type="submit" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium transition shadow">保存成本</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 弹窗 2：新建工地项目弹窗 -->
+    <div id="projectModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-bold text-lg text-slate-900">新建工地项目</h3>
+                <button onclick="closeNewProjectModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-sm">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">工地名称 / 业主地址</label>
+                    <input type="text" id="newProjectName" placeholder="例如：保利花园 5栋1202 墙面翻新" 
+                        class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-amber-500"
+                        onkeydown="if(event.key==='Enter') createNewProject()">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button onclick="closeNewProjectModal()" class="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-medium">取消</button>
+                    <button onclick="createNewProject()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl">创建并切换</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗 3：一键生成业主报价/结算单弹窗 -->
+    <div id="quoteModal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
+            <!-- 弹窗顶部控制栏 -->
+            <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-check-2" class="w-5 h-5 text-amber-400"></i>
+                    <h3 class="font-bold text-base sm:text-lg">业主工程报价 / 结算单</h3>
+                </div>
+                <button onclick="closeQuoteModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- 报价单参数调节条 -->
+            <div class="px-5 py-3 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center gap-3 text-xs shrink-0">
+                <div class="flex items-center gap-1.5">
+                    <label class="font-medium text-slate-700">单据类型：</label>
+                    <select id="quoteDocType" onchange="renderQuotePreview()" class="bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-medium text-slate-800 focus:outline-none">
+                        <option value="工程施工报价单">工程施工报价单</option>
+                        <option value="工程完工结算单">工程完工结算单</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <label class="font-medium text-slate-700">报价上浮(%)：</label>
+                    <input type="number" id="quoteMarkup" value="0" min="0" max="500" step="5" oninput="renderQuotePreview()"
+                        class="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-amber-700 focus:outline-none" title="0表示按成本原价展示，填20表示单价上浮20%对外报价">
+                </div>
+                <div class="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                    <label class="font-medium text-slate-700 shrink-0">施工方/电话：</label>
+                    <input type="text" id="quoteContractor" placeholder="如：匠心墙面维修 · 138xxxx8888" oninput="renderQuotePreview()"
+                        class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- 报价单可视化预览纸张区 -->
+            <div class="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50">
+                <div id="quotePaper" class="bg-white border border-slate-200 rounded-xl p-5 sm:p-7 shadow-sm space-y-5 text-slate-800">
+                    <!-- 动态生成正式报价单内容 -->
+                </div>
+            </div>
+
+            <!-- 底部操作按钮 -->
+            <div class="px-5 py-3.5 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <span class="text-xs text-slate-400">提示：可复制文字发微信，或点击打印另存为PDF/截图</span>
+                <div class="flex items-center gap-2">
+                    <button onclick="copyQuoteText()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm">
+                        <i data-lucide="copy" class="w-4 h-4"></i> 复制微信文本
+                    </button>
+                    <button onclick="printQuoteSheet()" class="bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl flex items-center gap-1.5 transition shadow-sm">
+                        <i data-lucide="printer" class="w-4 h-4"></i> 打印 / 存PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局自定义消息提示 Toast -->
+    <div id="toastBox" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 translate-y-4">
+        <div id="toastContent" class="bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 border border-slate-700">
+            <i data-lucide="info" class="w-4 h-4 text-amber-400"></i>
+            <span id="toastText">提示消息</span>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 初始化状态（无任何虚拟数据，支持本地持久化保存）
+        // ==========================================
+        const STORAGE_KEY = 'renovation_manager_data_v1';
+
+        let appState = {
+            currentProjectId: '',
+            currentCostFilter: 'all',
+            contractorInfo: '',
+            projects: []
+        };
+
+        // 暂存 AI 解析出的待确认数据
+        let pendingAiResult = null;
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && Array.isArray(parsed.projects)) {
+                        appState = { ...appState, ...parsed };
+                    }
+                }
+            } catch (e) {
+                // 忽略存储读取异常
+            }
+            // 确保至少有一个干净的默认工地容器可供直接开始记账
+            if (!appState.projects || appState.projects.length === 0) {
+                const defaultProjId = 'proj_' + Date.now();
+                appState.projects = [
+                    {
+                        id: defaultProjId,
+                        name: '默认工地（点击右侧“新工地”可改名或新建）',
+                        costs: [],
+                        todos: []
+                    }
+                ];
+                appState.currentProjectId = defaultProjId;
+                saveState();
+            } else if (!appState.projects.some(p => p.id === appState.currentProjectId)) {
+                appState.currentProjectId = appState.projects[0].id;
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            } catch (e) {
+                // 忽略存储写入异常
+            }
+        }
+
+        // ==========================================
+        // 2. 页面初始化与渲染引擎
+        // ==========================================
+        window.onload = function() {
+            loadState();
+            lucide.createIcons();
+            initSpeechRecognition();
+            renderAll();
+        };
+
+        function getCurrentProject() {
+            return appState.projects.find(p => p.id === appState.currentProjectId) || appState.projects[0];
+        }
+
+        function renderAll() {
+            saveState();
+            renderProjectSelector();
+            renderStats();
+            renderCostList();
+            renderTodoList();
+            lucide.createIcons();
+        }
+
+        // 渲染顶部项目下拉框
+        function renderProjectSelector() {
+            const select = document.getElementById('projectSelect');
+            select.innerHTML = appState.projects.map(p => 
+                `<option value="${p.id}" ${p.id === appState.currentProjectId ? 'selected' : ''}>${p.name}</option>`
+            ).join('');
+        }
+
+        // 渲染顶部统计卡片
+        function renderStats() {
+            const proj = getCurrentProject();
+            let totalCost = 0;
+            let laborCost = 0;
+            let materialCost = 0;
+
+            proj.costs.forEach(item => {
+                const sub = Number(item.unitPrice) * Number(item.quantity);
+                totalCost += sub;
+                if (item.category === '人工+辅料' || item.category === '纯人工费') {
+                    laborCost += sub;
+                } else if (item.category === '材料采购') {
+                    materialCost += sub;
+                }
+            });
+
+            document.getElementById('statTotalCost').textContent = `¥${totalCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('statCostCount').textContent = `共 ${proj.costs.length} 笔明细`;
+            document.getElementById('statLaborCost').textContent = `¥${laborCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('statMaterialCost').textContent = `¥${materialCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            const totalTodos = proj.todos.length;
+            const doneTodos = proj.todos.filter(t => t.done).length;
+            document.getElementById('statTodoProgress').textContent = `${doneTodos} / ${totalTodos}`;
+            const pct = totalTodos === 0 ? 0 : Math.round((doneTodos / totalTodos) * 100);
+            document.getElementById('statTodoBar').style.width = `${pct}%`;
+        }
+
+        // 渲染项目成本明细列表
+        function renderCostList() {
+            const proj = getCurrentProject();
+            const container = document.getElementById('costListContainer');
+            const filter = appState.currentCostFilter;
+
+            const filtered = filter === 'all' 
+                ? proj.costs 
+                : proj.costs.filter(c => c.category === filter);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="p-10 text-center text-slate-400">
+                        <i data-lucide="receipt" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                        <p class="text-sm">暂无相关成本记录</p>
+                        <p class="text-xs mt-1">点击右上角“记一笔成本”或使用上方语音输入</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const badgeColors = {
+                '人工+辅料': 'bg-amber-100 text-amber-800 border-amber-200',
+                '纯人工费': 'bg-blue-100 text-blue-800 border-blue-200',
+                '材料采购': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                '其他杂费': 'bg-slate-100 text-slate-700 border-slate-200'
+            };
+
+            container.innerHTML = filtered.map(item => {
+                const subtotal = (Number(item.unitPrice) * Number(item.quantity)).toFixed(2);
+                const badgeClass = badgeColors[item.category] || badgeColors['其他杂费'];
+                return `
+                    <div class="p-4 hover:bg-slate-50/80 transition flex items-start justify-between gap-3 group">
+                        <div class="space-y-1.5 flex-1 min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-md border ${badgeClass}">${item.category}</span>
+                                <h3 class="font-bold text-slate-900 text-sm sm:text-base truncate">${escapeHtml(item.name)}</h3>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                                <span class="font-medium text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                                    ¥${item.unitPrice}/${escapeHtml(item.unit)} × ${item.quantity}${escapeHtml(item.unit)}
+                                </span>
+                                <span class="text-slate-400">${item.date || '刚刚'}</span>
+                            </div>
+                            ${item.note ? `<p class="text-xs text-slate-500 flex items-center gap-1"><i data-lucide="info" class="w-3.5 h-3.5 text-amber-500 shrink-0"></i> ${escapeHtml(item.note)}</p>` : ''}
+                        </div>
+                        <div class="flex flex-col items-end justify-between shrink-0 gap-2">
+                            <span class="font-bold text-base sm:text-lg text-slate-900">¥${Number(subtotal).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</span>
+                            <button onclick="deleteCostItem('${item.id}')" class="text-slate-300 hover:text-rose-500 p-1 rounded-lg transition" title="删除此笔记录">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 渲染待办清单列表
+        function renderTodoList() {
+            const proj = getCurrentProject();
+            const container = document.getElementById('todoListContainer');
+
+            if (proj.todos.length === 0) {
+                container.innerHTML = `
+                    <div class="p-10 text-center text-slate-400">
+                        <i data-lucide="check-circle" class="w-10 h-10 mx-auto mb-2 opacity-40"></i>
+                        <p class="text-sm">当前工地没有待办事项</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 未完成的排在前面
+            const sortedTodos = [...proj.todos].sort((a, b) => Number(a.done) - Number(b.done));
+
+            const tagStyles = {
+                '施工工序': 'bg-blue-50 text-blue-600',
+                '材料采购': 'bg-emerald-50 text-emerald-600',
+                '现场验收': 'bg-purple-50 text-purple-600'
+            };
+
+            container.innerHTML = sortedTodos.map(todo => {
+                const tagClass = tagStyles[todo.tag] || 'bg-slate-100 text-slate-600';
+                return `
+                    <div class="p-3.5 hover:bg-slate-50 transition flex items-center justify-between gap-3 ${todo.done ? 'bg-slate-50/60' : ''}">
+                        <label class="flex items-start gap-3 cursor-pointer flex-1 min-w-0 select-none">
+                            <input type="checkbox" ${todo.done ? 'checked' : ''} onchange="toggleTodo('${todo.id}')"
+                                class="mt-0.5 w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0">
+                            <div class="space-y-1 flex-1 min-w-0">
+                                <p class="text-sm leading-snug break-words ${todo.done ? 'line-through text-slate-400' : 'text-slate-800 font-medium'}">
+                                    ${escapeHtml(todo.text)}
+                                </p>
+                                <span class="inline-block text-[11px] font-medium px-2 py-0.5 rounded ${tagClass}">
+                                    ${escapeHtml(todo.tag || '施工工序')}
+                                </span>
+                            </div>
+                        </label>
+                        <button onclick="deleteTodo('${todo.id}')" class="text-slate-300 hover:text-rose-500 p-1 rounded-lg transition shrink-0">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==========================================
+        // 3. 项目切换、成本管理、待办管理交互逻辑
+        // ==========================================
+        function switchProject(projectId) {
+            appState.currentProjectId = projectId;
+            closeAiPreview();
+            renderAll();
+            showToast('已切换工地项目');
+        }
+
+        function openNewProjectModal() {
+            document.getElementById('newProjectName').value = '';
+            document.getElementById('projectModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('newProjectName').focus(), 100);
+        }
+
+        function closeNewProjectModal() {
+            document.getElementById('projectModal').classList.add('hidden');
+        }
+
+        function createNewProject() {
+            const name = document.getElementById('newProjectName').value.trim();
+            if (!name) {
+                showToast('请输入工地名称');
+                return;
+            }
+            const newId = 'proj_' + Date.now();
+            appState.projects.unshift({
+                id: newId,
+                name: name,
+                costs: [],
+                todos: []
+            });
+            appState.currentProjectId = newId;
+            closeNewProjectModal();
+            renderAll();
+            showToast('新工地创建成功');
+        }
+
+        // 成本筛选
+        function filterCosts(category) {
+            appState.currentCostFilter = category;
+            document.querySelectorAll('.cost-filter-btn').forEach(btn => {
+                if (btn.dataset.filter === category) {
+                    btn.className = 'cost-filter-btn bg-slate-900 text-white px-3 py-1.5 rounded-lg font-medium transition shrink-0';
+                } else {
+                    btn.className = 'cost-filter-btn bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium transition shrink-0';
+                }
+            });
+            renderCostList();
+            lucide.createIcons();
+        }
+
+        // 成本弹窗控制
+        function openCostModal() {
+            document.getElementById('costForm').reset();
+            document.getElementById('costQuantity').value = 1;
+            document.getElementById('modalTotalPreview').textContent = '¥0.00';
+            document.getElementById('costModal').classList.remove('hidden');
+        }
+
+        function closeCostModal() {
+            document.getElementById('costModal').classList.add('hidden');
+        }
+
+        function calculateModalTotal() {
+            const price = parseFloat(document.getElementById('costUnitPrice').value) || 0;
+            const qty = parseFloat(document.getElementById('costQuantity').value) || 0;
+            const total = price * qty;
+            document.getElementById('modalTotalPreview').textContent = `¥${total.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        function saveCostItem(e) {
+            e.preventDefault();
+            const proj = getCurrentProject();
+            const now = new Date();
+            const newItem = {
+                id: 'c_' + Date.now(),
+                name: document.getElementById('costName').value.trim(),
+                category: document.getElementById('costCategory').value,
+                unitPrice: parseFloat(document.getElementById('costUnitPrice').value) || 0,
+                quantity: parseFloat(document.getElementById('costQuantity').value) || 1,
+                unit: document.getElementById('costUnit').value,
+                note: document.getElementById('costNote').value.trim(),
+                date: getCurrentTimeStr(),
+                timestamp: now.getTime(),
+                yearMonth: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+            };
+            proj.costs.unshift(newItem);
+            closeCostModal();
+            renderAll();
+            showToast('已记入项目成本');
+        }
+
+        function deleteCostItem(costId) {
+            const proj = getCurrentProject();
+            proj.costs = proj.costs.filter(c => c.id !== costId);
+            renderAll();
+            showToast('已删除该条成本记录');
+        }
+
+        // 待办事项操作
+        function addQuickTodo() {
+            const input = document.getElementById('quickTodoInput');
+            const tag = document.getElementById('quickTodoTag').value;
+            const text = input.value.trim();
+            if (!text) return;
+
+            const proj = getCurrentProject();
+            proj.todos.unshift({
+                id: 't_' + Date.now(),
+                text: text,
+                tag: tag,
+                done: false
+            });
+            input.value = '';
+            renderAll();
+            showToast('已加入施工待办');
+        }
+
+        function toggleTodo(todoId) {
+            const proj = getCurrentProject();
+            const todo = proj.todos.find(t => t.id === todoId);
+            if (todo) {
+                todo.done = !todo.done;
+                renderAll();
+            }
+        }
+
+        function deleteTodo(todoId) {
+            const proj = getCurrentProject();
+            proj.todos = proj.todos.filter(t => t.id !== todoId);
+            renderAll();
+        }
+
+        function clearCompletedTodos() {
+            const proj = getCurrentProject();
+            const beforeCount = proj.todos.length;
+            proj.todos = proj.todos.filter(t => !t.done);
+            if (proj.todos.length < beforeCount) {
+                renderAll();
+                showToast('已清理完成项');
+            } else {
+                showToast('没有已完成的待办项');
+            }
+        }
+
+        // ==========================================
+        // 4. Web Speech API 语音识别功能
+        // ==========================================
+        let recognition = null;
+        let isRecording = false;
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                document.getElementById('voiceBtnText').textContent = '浏览器不支持语音';
+                document.getElementById('voiceBtn').classList.add('opacity-60', 'cursor-not-allowed');
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = false;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {
+                isRecording = true;
+                document.getElementById('voiceRing').classList.remove('hidden');
+                document.getElementById('voiceBtn').classList.replace('bg-amber-500', 'bg-rose-500');
+                document.getElementById('voiceBtn').classList.replace('hover:bg-amber-400', 'hover:bg-rose-400');
+                document.getElementById('voiceBtn').classList.replace('text-slate-950', 'text-white');
+                document.getElementById('voiceBtnText').textContent = '正在聆听，请说话...';
+            };
+
+            recognition.onresult = function(event) {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                document.getElementById('aiInputText').value = transcript;
+            };
+
+            recognition.onerror = function(event) {
+                stopRecordingUI();
+                if (event.error === 'not-allowed') {
+                    showToast('请允许浏览器使用麦克风权限');
+                } else {
+                    showToast('语音识别中断，请重试或直接打字');
+                }
+            };
+
+            recognition.onend = function() {
+                stopRecordingUI();
+                const text = document.getElementById('aiInputText').value.trim();
+                if (text) {
+                    // 语音结束后自动触发 AI 整理分析
+                    analyzeWithAI();
+                }
+            };
+        }
+
+        function toggleVoiceRecognition() {
+            if (!recognition) {
+                showToast('当前环境不支持原生语音识别，请直接输入文字测试');
+                return;
+            }
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                document.getElementById('aiInputText').value = '';
+                try {
+                    recognition.start();
+                } catch (e) {
+                    showToast('语音启动中，请稍候');
+                }
+            }
+        }
+
+        function stopRecordingUI() {
+            isRecording = false;
+            document.getElementById('voiceRing').classList.add('hidden');
+            document.getElementById('voiceBtn').classList.replace('bg-rose-500', 'bg-amber-500');
+            document.getElementById('voiceBtn').classList.replace('hover:bg-rose-400', 'hover:bg-amber-400');
+            document.getElementById('voiceBtn').classList.replace('text-white', 'text-slate-950');
+            document.getElementById('voiceBtnText').textContent = '点击语音输入';
+        }
+
+        function fillExample(text) {
+            document.getElementById('aiInputText').value = text;
+            analyzeWithAI();
+        }
+
+        // ==========================================
+        // 5. Gemini AI 语义整理与结构化拆解分析
+        // ==========================================
+        async function analyzeWithAI() {
+            const inputEl = document.getElementById('aiInputText');
+            const rawText = inputEl.value.trim();
+            if (!rawText) {
+                showToast('请先说话或输入需要整理的内容');
+                return;
+            }
+
+            const btn = document.getElementById('aiAnalyzeBtn');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>AI 整理中...</span>`;
+            lucide.createIcons();
+
+            const systemPrompt = `你是一个资深的室内装修及墙面维修工程管家AI。你的任务是将装修师傅或包工头口述的日常工地语音文本，精准拆解为结构化的【项目成本记录】和【施工待办清单】。
+分析规则：
+1. 识别文本中涉及花钱、报价、单价、面积、材料采购的内容，归入 costs 数组。
+   - 特别注意装修行业习惯：如“贴地面瓷砖，人工成本+水泥，200/平方，不含瓷砖”，如果没说具体多少平方，quantity 默认设为 1，note 详细写明“人工成本+水泥，不含瓷砖”；如果说了面积如“30平方”，quantity 设为 30。
+   - category 只能从以下四项中选择："人工+辅料"、"纯人工费"、"材料采购"、"其他杂费"。
+2. 识别文本中涉及下一步工作安排、买材料提醒、验收事项、工序要求的内容，归入 todos 数组。
+   - tag 只能从以下三项中选择："施工工序"、"材料采购"、"现场验收"。
+3. summary 字段用一句简短专业的话给出成本提醒或施工建议（例如提醒核对主材是否另算、腻子干透时间等）。`;
+
+            const payload = {
+                contents: [{ parts: [{ text: `请分析整理以下工地记录： "${rawText}"` }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            costs: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        name: { type: "STRING", description: "施工或材料项目名称" },
+                                        category: { type: "STRING", description: "人工+辅料 / 纯人工费 / 材料采购 / 其他杂费" },
+                                        unitPrice: { type: "NUMBER", description: "单价数值" },
+                                        quantity: { type: "NUMBER", description: "面积或数量，未提及则填1" },
+                                        unit: { type: "STRING", description: "单位，如平方、桶、袋、米、项" },
+                                        note: { type: "STRING", description: "包含或不含什么材料的备注说明" }
+                                    },
+                                    required: ["name", "category", "unitPrice", "quantity", "unit", "note"]
+                                }
+                            },
+                            todos: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        text: { type: "STRING", description: "清晰的待办任务描述" },
+                                        tag: { type: "STRING", description: "施工工序 / 材料采购 / 现场验收" }
+                                    },
+                                    required: ["text", "tag"]
+                                }
+                            },
+                            summary: { type: "STRING", description: "AI 管家的简短工程提醒或分析建议" }
+                        },
+                        required: ["costs", "todos", "summary"]
+                    }
+                }
+            };
+
+            try {
+                const parsed = await callGeminiWithBackoff(payload);
+                pendingAiResult = parsed;
+                renderAiPreview(parsed);
+            } catch (error) {
+                // 如果处于离线或无 API 密钥环境，启用本地智能规则引擎兜底，保证演示与日常可用
+                const fallbackResult = localSmartParser(rawText);
+                pendingAiResult = fallbackResult;
+                renderAiPreview(fallbackResult);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                lucide.createIcons();
+            }
+        }
+
+        // 带指数退避的 Gemini API 请求
+        async function callGeminiWithBackoff(payload, maxRetries = 3) {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error('API Error');
+                    const result = await response.json();
+                    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        return JSON.parse(text);
+                    }
+                    throw new Error('Empty response');
+                } catch (err) {
+                    if (attempt === maxRetries - 1) throw err;
+                    await new Promise(res => setTimeout(res, Math.pow(2, attempt) * 1000));
+                }
+            }
+        }
+
+        // 本地规则兜底解析器（确保任何网络环境下体验均流畅可用）
+        function localSmartParser(text) {
+            const result = { costs: [], todos: [], summary: '已为您自动区分成本报价与待办任务，入账前请核对面积与单价。' };
+            const clauses = text.split(/[；;，,。！!]+/).filter(s => s.trim().length > 0);
+            
+            clauses.forEach(clause => {
+                const priceMatch = clause.match(/(\d+(?:\.\d+)?)\s*(?:元|块)?\s*(?:\/|每|一)?\s*(平方|平|㎡|米|桶|袋|项|天)/) || clause.match(/(\d+(?:\.\d+)?)\s*(?:元|块)/);
+                const qtyMatch = clause.match(/(\d+(?:\.\d+)?)\s*(平方|平|㎡|米|桶|袋|间|个)/);
+
+                if (priceMatch || /(?:花了|费用|单价|人工|水泥|腻子|乳胶漆|瓷砖)/.test(clause) && /\d+/.test(clause)) {
+                    const unitPrice = priceMatch ? parseFloat(priceMatch[1]) : 0;
+                    const unit = (qtyMatch && qtyMatch[2]) ? qtyMatch[2].replace('平', '平方') : ((priceMatch && priceMatch[2]) ? priceMatch[2].replace('平', '平方') : '平方');
+                    const quantity = (qtyMatch && parseFloat(qtyMatch[1]) !== unitPrice) ? parseFloat(qtyMatch[1]) : 1;
+                    
+                    let category = '人工+辅料';
+                    if (/买|购|漆|粉|砖|砂纸/.test(clause) && !/人工/.test(clause)) category = '材料采购';
+                    else if (/纯人工|点工/.test(clause)) category = '纯人工费';
+
+                    let note = '';
+                    if (/不含/.test(clause)) note = clause.substring(clause.indexOf('不含'));
+                    else if (/含/.test(clause)) note = clause.substring(clause.indexOf('含'));
+
+                    const cleanName = clause.replace(/(\d+(?:\.\d+)?)\s*(?:元|块|平方|平|㎡|米|桶|袋).*/g, '').replace(/^(今天|昨天|买了|做了)/, '').trim() || '装修施工项';
+
+                    result.costs.push({
+                        name: cleanName,
+                        category: category,
+                        unitPrice: unitPrice,
+                        quantity: quantity,
+                        unit: unit,
+                        note: note || '语音智能识别记录'
+                    });
+                } else {
+                    let tag = '施工工序';
+                    if (/买|购|补货|五金/.test(clause)) tag = '材料采购';
+                    else if (/验收|确认|检查|业主/.test(clause)) tag = '现场验收';
+
+                    result.todos.push({
+                        text: clause.replace(/^(另外|还有|提醒我)/, '').trim(),
+                        tag: tag
+                    });
+                }
+            });
+            return result;
+        }
+
+        // 渲染 AI 解析预览框
+        function renderAiPreview(data) {
+            const box = document.getElementById('aiPreviewBox');
+            const list = document.getElementById('aiPreviewList');
+            const note = document.getElementById('aiSummaryNote');
+
+            let html = '';
+
+            if (data.costs && data.costs.length > 0) {
+                data.costs.forEach((c, idx) => {
+                    const total = (c.unitPrice * c.quantity).toFixed(2);
+                    html += `
+                        <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded mr-1.5 font-medium">成本 · ${escapeHtml(c.category)}</span>
+                                <span class="font-semibold text-white">${escapeHtml(c.name)}</span>
+                                <div class="text-xs text-slate-400 mt-1">
+                                    单价: ¥${c.unitPrice}/${escapeHtml(c.unit)} × 数量: ${c.quantity}${escapeHtml(c.unit)} 
+                                    ${c.note ? `· 备注: ${escapeHtml(c.note)}` : ''}
+                                </div>
+                            </div>
+                            <div class="text-amber-400 font-bold text-base">¥${total}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            if (data.todos && data.todos.length > 0) {
+                data.todos.forEach((t, idx) => {
+                    html += `
+                        <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-medium shrink-0">待办 · ${escapeHtml(t.tag)}</span>
+                                <span class="text-slate-100">${escapeHtml(t.text)}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            if (!html) {
+                html = `<p class="text-slate-400 text-xs">未能识别出明确的账目或待办，请尝试更具体地描述金额或任务。</p>`;
+            }
+
+            list.innerHTML = html;
+            note.innerHTML = `<strong>AI 管家分析：</strong>${escapeHtml(data.summary || '整理完毕')}`;
+            box.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeAiPreview() {
+            document.getElementById('aiPreviewBox').classList.add('hidden');
+            pendingAiResult = null;
+        }
+
+        function confirmAiItems() {
+            if (!pendingAiResult) return;
+            const proj = getCurrentProject();
+            let addedCount = 0;
+            const now = new Date();
+            const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            if (pendingAiResult.costs && pendingAiResult.costs.length > 0) {
+                pendingAiResult.costs.forEach((c, i) => {
+                    proj.costs.unshift({
+                        id: 'c_ai_' + Date.now() + '_' + i,
+                        name: c.name,
+                        category: c.category || '人工+辅料',
+                        unitPrice: Number(c.unitPrice) || 0,
+                        quantity: Number(c.quantity) || 1,
+                        unit: c.unit || '平方',
+                        note: c.note || '',
+                        date: getCurrentTimeStr(),
+                        timestamp: now.getTime(),
+                        yearMonth: ym
+                    });
+                    addedCount++;
+                });
+            }
+
+            if (pendingAiResult.todos && pendingAiResult.todos.length > 0) {
+                pendingAiResult.todos.forEach((t, i) => {
+                    proj.todos.unshift({
+                        id: 't_ai_' + Date.now() + '_' + i,
+                        text: t.text,
+                        tag: t.tag || '施工工序',
+                        done: false
+                    });
+                    addedCount++;
+                });
+            }
+
+            document.getElementById('aiInputText').value = '';
+            closeAiPreview();
+            renderAll();
+            showToast(`成功入账并添加 ${addedCount} 条记录！`);
+        }
+
+        // ==========================================
+        // 6. 一键生成业主报价/结算单功能
+        // ==========================================
+        function openQuoteModal() {
+            const proj = getCurrentProject();
+            if (!proj.costs || proj.costs.length === 0) {
+                showToast('当前工地暂无成本明细，请先添加施工项目');
+                return;
+            }
+            document.getElementById('quoteContractor').value = appState.contractorInfo || '';
+            renderQuotePreview();
+            document.getElementById('quoteModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeQuoteModal() {
+            document.getElementById('quoteModal').classList.add('hidden');
+        }
+
+        function getQuoteData() {
+            const proj = getCurrentProject();
+            const docType = document.getElementById('quoteDocType').value;
+            const markupPct = parseFloat(document.getElementById('quoteMarkup').value) || 0;
+            const contractor = document.getElementById('quoteContractor').value.trim();
+            appState.contractorInfo = contractor;
+            saveState();
+
+            const multiplier = 1 + (markupPct / 100);
+            let grandTotal = 0;
+
+            const items = proj.costs.map((item, index) => {
+                const quoteUnitPrice = Number((Number(item.unitPrice) * multiplier).toFixed(2));
+                const subtotal = Number((quoteUnitPrice * Number(item.quantity)).toFixed(2));
+                grandTotal += subtotal;
+                return {
+                    index: index + 1,
+                    name: item.name,
+                    category: item.category,
+                    unitPrice: quoteUnitPrice,
+                    quantity: Number(item.quantity),
+                    unit: item.unit,
+                    subtotal: subtotal,
+                    note: item.note || ''
+                };
+            });
+
+            const todayStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+            return {
+                docType,
+                projectName: proj.name,
+                contractor,
+                dateStr: todayStr,
+                items,
+                grandTotal: Number(grandTotal.toFixed(2))
+            };
+        }
+
+        function renderQuotePreview() {
+            const data = getQuoteData();
+            const paper = document.getElementById('quotePaper');
+
+            const rowsHtml = data.items.map(item => `
+                <tr class="border-b border-slate-200 text-xs sm:text-sm">
+                    <td class="py-2.5 px-2 text-slate-500 text-center">${item.index}</td>
+                    <td class="py-2.5 px-2">
+                        <div class="font-semibold text-slate-900">${escapeHtml(item.name)}</div>
+                        ${item.note ? `<div class="text-xs text-slate-500 mt-0.5">说明：${escapeHtml(item.note)}</div>` : ''}
+                    </td>
+                    <td class="py-2.5 px-2 text-right whitespace-nowrap">¥${item.unitPrice.toFixed(2)}/${escapeHtml(item.unit)}</td>
+                    <td class="py-2.5 px-2 text-center whitespace-nowrap">${item.quantity}${escapeHtml(item.unit)}</td>
+                    <td class="py-2.5 px-2 text-right font-bold text-slate-900 whitespace-nowrap">¥${item.subtotal.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `).join('');
+
+            paper.innerHTML = `
+                <div class="text-center border-b-2 border-slate-900 pb-4">
+                    <h2 class="text-xl sm:text-2xl font-bold tracking-wider text-slate-900">${escapeHtml(data.docType)}</h2>
+                    <p class="text-xs text-slate-500 mt-1">专业室内装修 · 墙面维修 · 工程预算明细</p>
+                </div>
+
+                <div class="flex flex-wrap justify-between gap-2 text-xs sm:text-sm bg-slate-50 p-3 rounded-lg border border-slate-200/80">
+                    <div><span class="text-slate-500">项目/业主地址：</span><strong class="text-slate-900">${escapeHtml(data.projectName)}</strong></div>
+                    <div><span class="text-slate-500">出具日期：</span><span class="text-slate-800">${data.dateStr}</span></div>
+                    ${data.contractor ? `<div class="w-full pt-1 border-t border-slate-200/60"><span class="text-slate-500">施工单位/联系人：</span><span class="text-slate-800 font-medium">${escapeHtml(data.contractor)}</span></div>` : ''}
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-left">
+                        <thead>
+                            <tr class="bg-slate-900 text-white text-xs">
+                                <th class="py-2 px-2 text-center rounded-tl-lg w-10">序号</th>
+                                <th class="py-2 px-2">施工项目及工艺材料说明</th>
+                                <th class="py-2 px-2 text-right">单价</th>
+                                <th class="py-2 px-2 text-center">工程量</th>
+                                <th class="py-2 px-2 text-right rounded-tr-lg">小计(元)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t-2 border-slate-900">
+                    <div class="text-xs text-slate-500 space-y-1">
+                        <p>1. 以上报价均按实际发生工程量及约定含料范围核算。</p>
+                        <p>2. 如有新增维修项目或主材变更，双方确认后另行计费。</p>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl text-right shrink-0">
+                        <div class="text-xs text-slate-600">工程合计总金额</div>
+                        <div class="text-2xl font-bold text-amber-700">¥${data.grandTotal.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 pt-6 text-xs text-slate-600">
+                    <div>业主确认签字：____________________</div>
+                    <div class="text-right">施工方签字：____________________</div>
+                </div>
+            `;
+        }
+
+        function copyQuoteText() {
+            const data = getQuoteData();
+            let lines = [
+                `【${data.docType}】`,
+                `工地项目：${data.projectName}`,
+                `出具日期：${data.dateStr}`,
+                `------------------------`
+            ];
+            data.items.forEach(item => {
+                lines.push(`${item.index}. ${item.name}`);
+                lines.push(`   单价：¥${item.unitPrice}/${item.unit} × ${item.quantity}${item.unit} = ¥${item.subtotal.toFixed(2)}`);
+                if (item.note) {
+                    lines.push(`   备注：${item.note}`);
+                }
+            });
+            lines.push(`------------------------`);
+            lines.push(`合计总金额：¥${data.grandTotal.toFixed(2)} 元`);
+            if (data.contractor) {
+                lines.push(`施工联系：${data.contractor}`);
+            }
+
+            const fullText = lines.join('\n');
+            const textarea = document.createElement('textarea');
+            textarea.value = fullText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('报价单文字已复制，可直接粘贴发给业主微信！');
+            } catch (err) {
+                showToast('复制失败，请尝试截图或打印');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function printQuoteSheet() {
+            const paperContent = document.getElementById('quotePaper').innerHTML;
+            const printWin = window.open('', '_blank', 'width=800,height=900');
+            if (!printWin) {
+                showToast('请允许弹出窗口以进行打印或保存PDF');
+                return;
+            }
+            printWin.document.write(`
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>业主工程报价单打印</title>
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                    <style>
+                        body { font-family: sans-serif; padding: 24px; background: #fff; }
+                        @media print { body { padding: 0; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="max-w-2xl mx-auto space-y-5">${paperContent}</div>
+                    <script>
+                        setTimeout(() => { window.print(); }, 500);
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+
+        // ==========================================
+        // 7. 一键导出本月项目成本表格 (CSV/Excel)
+        // ==========================================
+        function exportMonthlyCSV() {
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            const currentYM = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+            let monthlyRows = [];
+            let totalAmount = 0;
+
+            appState.projects.forEach(proj => {
+                (proj.costs || []).forEach(cost => {
+                    // 匹配本月的记录（兼容未带yearMonth字段的新记录默认为本月）
+                    const itemYM = cost.yearMonth || currentYM;
+                    if (itemYM === currentYM) {
+                        const sub = Number((Number(cost.unitPrice) * Number(cost.quantity)).toFixed(2));
+                        totalAmount += sub;
+                        monthlyRows.push({
+                            projectName: proj.name,
+                            name: cost.name,
+                            category: cost.category,
+                            unitPrice: Number(cost.unitPrice).toFixed(2),
+                            quantity: cost.quantity,
+                            unit: cost.unit,
+                            subtotal: sub.toFixed(2),
+                            note: cost.note || '',
+                            date: cost.date || currentYM
+                        });
+                    }
+                });
+            });
+
+            if (monthlyRows.length === 0) {
+                showToast(`${currentYear}年${currentMonth}月暂无成本记录可导出`);
+                return;
+            }
+
+            // 构建 CSV 表头与内容（添加 UTF-8 BOM \uFEFF 防止 Excel 打开中文乱码）
+            const headers = ['所属工地项目', '施工/材料项目名称', '费用类型', '单价(元)', '面积/数量', '计价单位', '小计金额(元)', '材料包含说明/备注', '记录时间'];
+            const csvLines = [headers.join(',')];
+
+            monthlyRows.forEach(row => {
+                const line = [
+                    csvEscape(row.projectName),
+                    csvEscape(row.name),
+                    csvEscape(row.category),
+                    row.unitPrice,
+                    row.quantity,
+                    csvEscape(row.unit),
+                    row.subtotal,
+                    csvEscape(row.note),
+                    csvEscape(row.date)
+                ];
+                csvLines.push(line.join(','));
+            });
+
+            // 末尾追加本月汇总行
+            csvLines.push(`本月总计,,,,,,${totalAmount.toFixed(2)},共 ${monthlyRows.length} 笔明细,`);
+
+            const csvContent = '\uFEFF' + csvLines.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `装修项目成本明细表_${currentYear}年${String(currentMonth).padStart(2, '0')}月.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`已导出 ${currentYear}年${currentMonth}月 共 ${monthlyRows.length} 笔成本表格！`);
+        }
+
+        function csvEscape(val) {
+            const str = String(val ?? '');
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        // ==========================================
+        // 8. 辅助工具函数
+        // ==========================================
+        function getCurrentTimeStr() {
+            const now = new Date();
+            const mth = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            return `${mth}-${day} ${h}:${m}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+            const box = document.getElementById('toastBox');
+            document.getElementById('toastText').textContent = msg;
+            box.classList.remove('opacity-0', 'translate-y-4');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                box.classList.add('opacity-0', 'translate-y-4');
+            }, 2600);
+        }
+    </script>
+</body>
+</html>
